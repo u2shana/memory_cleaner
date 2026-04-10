@@ -45,7 +45,7 @@ INT WINAPI WinMain(
 
 	cleanMgr.raiseMemCleanThread();
 
-	if (0 == strstr(lpCmdLine, "slient")) {
+	if (0 == strstr(lpCmdLine, "silent")) {
 		DialogBox(hInstance, MAKEINTRESOURCE(IDD_DIALOG1), NULL, DlgProc);
 	}
 

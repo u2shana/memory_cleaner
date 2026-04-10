@@ -15,6 +15,19 @@
 extern win32SystemManager&  systemMgr;
 extern memcleanManager&     cleanMgr;
 
+static void UpdateThresholdLabels(HWND hDlg, int threshold) {
+	wchar_t buffer[256];
+
+	wsprintfW(buffer, L"达到%d%%，裁剪进程工作集", threshold);
+	SetDlgItemTextW(hDlg, IDC_CHECK1, buffer);
+
+	wsprintfW(buffer, L"达到%d%%，清理系统缓存", threshold);
+	SetDlgItemTextW(hDlg, IDC_CHECK3, buffer);
+
+	wsprintfW(buffer, L"达到%d%%，用已知方法全清", threshold);
+	SetDlgItemTextW(hDlg, IDC_CHECK6, buffer);
+}
+
 void ShowAbout() {
 	MessageBox(0,
 		VERSION "更新内容：集成目前已有的所有清理内存方法，包括Memreduct使用的全部方法。\n\n"
@@ -58,6 +71,8 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) 
 			CheckDlgButton(hDlg, IDC_CHECK6, cleanMgr.memCleanSwitches[5]);
 			CheckDlgButton(hDlg, IDC_CHECK7, cleanMgr.autoStart);
 			CheckDlgButton(hDlg, IDC_CHECK8, cleanMgr.bruteMode);
+			SetDlgItemInt(hDlg, IDC_THRESHOLD_EDIT, cleanMgr.getAutoCleanThreshold(), FALSE);
+			UpdateThresholdLabels(hDlg, cleanMgr.getAutoCleanThreshold());
 
 
 			std::thread t([] () {
@@ -100,10 +115,10 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) 
 					cachePercent = (double)usedCache / totalCache;
 
 
-					swprintf(buffer, L"物理内存用量：%llu MB  /  %llu MB   (%.0f%% 负载)", usedPhysMem, totalPhysMem, physPercent * 100);
+					swprintf(buffer, _countof(buffer), L"物理内存用量：%llu MB  /  %llu MB   (%.0f%% 负载)", usedPhysMem, totalPhysMem, physPercent * 100);
 					SetDlgItemTextW(cleanMgr.hDlg, IDC_STATIC1, buffer);
 
-					swprintf(buffer, L"页面文件：%llu MB  (%.0f%%)    系统缓存：%llu MB / %llu MB  (%.0f%%)", usedVirtualMem, virtPercent * 100, usedCache, totalCache, cachePercent * 100);
+					swprintf(buffer, _countof(buffer), L"页面文件：%llu MB  (%.0f%%)    系统缓存：%llu MB / %llu MB  (%.0f%%)", usedVirtualMem, virtPercent * 100, usedCache, totalCache, cachePercent * 100);
 					SetDlgItemTextW(cleanMgr.hDlg, IDC_STATIC2, buffer);
 
 
@@ -207,47 +222,62 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) 
 
 				return (INT_PTR)TRUE;
 
-			} else if (LOWORD(wParam) == IDC_CHECK7) { // autostart
+			} else if (LOWORD(wParam) == IDC_CHECK7) { // 任务计划程序实现开机自启
 
 				auto checked = IsDlgButtonChecked(hDlg, IDC_CHECK7);
+
+				char exePath[MAX_PATH] = {};
+				GetModuleFileName(NULL, exePath, MAX_PATH);
+
 				if (checked == BST_CHECKED) {
-					
-					char exePath[1024] = {}; // "\""
-					GetModuleFileName(NULL, exePath, 1024); // + 1
-					strcat(exePath, " slient"); // \" --
-					
-					HKEY hKey;
-					if (RegOpenKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_ALL_ACCESS, &hKey) == ERROR_SUCCESS) {
-						RegSetValueEx(hKey, "memclean", 0, REG_SZ, (const BYTE*)exePath, (DWORD)(strlen(exePath) + 1));
-						RegCloseKey(hKey);
-					} else {
-						systemMgr.panic("RegOpenKeyEx failed");
-					}
+
+					char command[2048] = {};
+					sprintf(command, "schtasks /Create /TN \"MemoryCleanerAutoStart\" /TR \"'%s' silent\" /SC ONLOGON /RL HIGHEST /F", exePath);
+
+					WinExec(command, SW_HIDE);
 
 					cleanMgr.autoStart = true;
 
-				} else if (checked == BST_UNCHECKED) {
+				}
+				else if (checked == BST_UNCHECKED) { // 删除该计划任务
 					
-					HKEY hKey;
-					if (RegOpenKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_ALL_ACCESS, &hKey) == ERROR_SUCCESS) {
-						RegDeleteValue(hKey, "memclean");
-						RegCloseKey(hKey);
-					} else {
-						systemMgr.panic("RegOpenKeyEx failed");
-					}
+					char command[512] = {};
+					sprintf(command, "schtasks /Delete /TN \"MemoryCleanerAutoStart\" /F");
+
+					WinExec(command, SW_HIDE);
 
 					cleanMgr.autoStart = false;
 				}
+
 				cleanMgr.savecfg();
-
 				return (INT_PTR)TRUE;
-
 			} else if (LOWORD(wParam) == IDC_CHECK8) {
 				auto checked = IsDlgButtonChecked(hDlg, IDC_CHECK8);
 				if (checked == BST_CHECKED || checked == BST_UNCHECKED) {
 					cleanMgr.bruteMode = checked;
 				}
 				cleanMgr.savecfg();
+
+				return (INT_PTR)TRUE;
+
+			} else if (LOWORD(wParam) == IDC_THRESHOLD_EDIT) {
+				BOOL translated = FALSE;
+				UINT threshold = GetDlgItemInt(hDlg, IDC_THRESHOLD_EDIT, &translated, FALSE);
+
+				if (HIWORD(wParam) == EN_CHANGE) {
+					if (translated) {
+						if (threshold > 100) {
+							threshold = 100;
+						}
+						cleanMgr.setAutoCleanThreshold((int)threshold);
+						UpdateThresholdLabels(hDlg, cleanMgr.getAutoCleanThreshold());
+						cleanMgr.savecfg();
+					}
+				} else if (HIWORD(wParam) == EN_KILLFOCUS) {
+					cleanMgr.setAutoCleanThreshold(translated ? (int)threshold : cleanMgr.getAutoCleanThreshold());
+					SetDlgItemInt(hDlg, IDC_THRESHOLD_EDIT, cleanMgr.getAutoCleanThreshold(), FALSE);
+					UpdateThresholdLabels(hDlg, cleanMgr.getAutoCleanThreshold());
+				}
 
 				return (INT_PTR)TRUE;
 

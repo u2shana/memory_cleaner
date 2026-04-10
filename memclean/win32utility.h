@@ -23,6 +23,8 @@ public:
 
 public:
 	void       init();
+	int        getAutoCleanThreshold() const;
+	void       setAutoCleanThreshold(int value);
 
 	bool       loadcfg();
 	void       savecfg();
@@ -40,6 +42,7 @@ public:
 	volatile bool    memCleanSwitches[6];
 	volatile bool    autoStart;
 	volatile bool    bruteMode;
+	volatile LONG    autoCleanThreshold;
 	volatile HWND    hDlg;
 	volatile HWND    hwndPB;
 

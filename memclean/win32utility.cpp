@@ -9,8 +9,8 @@
 
 
 memcleanManager::memcleanManager() 
-	: memCleanSwitches{}, autoStart(false), bruteMode(false), hDlg(NULL), hwndPB(NULL), 
-	  profile_str{}, NtSetSystemInformation(NULL), NtQuerySystemInformation(NULL) {}
+	: memCleanSwitches{}, autoStart(false), bruteMode(false), autoCleanThreshold(80),
+	  hDlg(NULL), hwndPB(NULL), profile_str{}, NtSetSystemInformation(NULL), NtQuerySystemInformation(NULL) {}
 
 memcleanManager::~memcleanManager() {
 	if (hDlg) {
@@ -22,6 +22,19 @@ memcleanManager::~memcleanManager() {
 memcleanManager& memcleanManager::getInstance() {
 	static memcleanManager mgr;
 	return mgr;
+}
+
+int memcleanManager::getAutoCleanThreshold() const {
+	return (int)autoCleanThreshold;
+}
+
+void memcleanManager::setAutoCleanThreshold(int value) {
+	if (value < 1) {
+		value = 1;
+	} else if (value > 100) {
+		value = 100;
+	}
+	autoCleanThreshold = value;
 }
 
 void memcleanManager::init() {
@@ -111,9 +124,15 @@ bool memcleanManager::loadcfg() {
 		memCleanSwitches[i] = GetPrivateProfileInt("memclean", buf, 0, profile);
 	}
 
+	autoCleanThreshold = GetPrivateProfileInt("memclean", "autoCleanThreshold", (int)autoCleanThreshold, profile);
+	if (autoCleanThreshold < 1 || autoCleanThreshold > 100) {
+		autoCleanThreshold = 80;
+	}
+
 	if (!result) {
 		bruteMode = 1;
 		memCleanSwitches[3] = memCleanSwitches[4] = true;
+		autoCleanThreshold = 80;
 		savecfg();
 	}
 
@@ -127,6 +146,8 @@ void memcleanManager::savecfg() {
 
 	WritePrivateProfileString("memclean", "autostart", autoStart ? "1" : "0", profile);
 	WritePrivateProfileString("memclean", "bruteMode", bruteMode ? "1" : "0", profile);
+	sprintf(buf, "%d", (int)autoCleanThreshold);
+	WritePrivateProfileString("memclean", "autoCleanThreshold", buf, profile);
 
 	for (int i = 0; i < 6; i++) {
 		sprintf(buf, "switch%d", i);
@@ -287,7 +308,8 @@ void memcleanManager::raiseMemCleanThread() {
 				usedPhysMem = memInfo.ullTotalPhys - memInfo.ullAvailPhys;
 				usedPercent = (double)usedPhysMem / totalPhysMem;
 
-				if (usedPercent >= 0.8) {
+				double thresholdPercent = (double)autoCleanThreshold / 100.0;
+				if (usedPercent >= thresholdPercent) {
 					if (memCleanSwitches[3]) {
 						if (bruteMode) {
 							trimProcessWorkingSet2();
