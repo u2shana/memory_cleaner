@@ -66,7 +66,7 @@ CAPTION "Memory Cleaner"
 FONT 8, "MS Shell Dlg", 400, 0, 0x0
 BEGIN
     PUSHBUTTON      "裁剪进程工作集",IDC_BUTTON1,174,129,74,14
-    LTEXT           "Memory Cleaner 重制版                  RemasteRed by: H3d9",IDC_STATIC,9,9,226,13
+    LTEXT           "Memory Cleaner 重制版 Fork            RemasteRed by: H3d9 && u2shana",IDC_STATIC,9,9,226,13
     ICON            IDI_ICON1,IDC_STATIC,13,25,20,20
     LTEXT           "内存用量：",IDC_STATIC1,10,51,235,8
     LTEXT           "页面文件：",IDC_STATIC2,10,64,234,8

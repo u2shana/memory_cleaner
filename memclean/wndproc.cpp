@@ -36,8 +36,8 @@ void ShowAbout() {
 		"裁剪进程工作集 = Trim Processes' Working Set\n"
 		"清理系统缓存 = Clear System Cache\n"
 		"执行全部已知清理：可以开游戏前手动点一下；如果开了游戏再点可能短暂卡顿。\n\n"
-		"  原作：Koshy John && henry++\n  重制：H3d9",
-		"Memory Cleaner 重制版  RemasteRed by: @H3d9",
+		"  原作：Koshy John && henry++\n  重制&Fork：H3d9 & u2shana",
+		"Memory Cleaner 重制版Fork  RemasteRed by: @H3d9 & &u2shana",
 		MB_OK);
 }
 
